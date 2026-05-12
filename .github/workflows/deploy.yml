@@ -169,6 +169,7 @@ jobs:
             --output text)" >> $GITHUB_OUTPUT
 
       - name: Build, Tag, and Push Image
+        id: build
         run: |
           docker build --platform linux/arm64 --provenance=false \
             -t ${{ steps.ecr.outputs.url }}:latest \
@@ -176,12 +177,18 @@ jobs:
             ./my-fastapi-app
           docker push ${{ steps.ecr.outputs.url }}:latest
           docker push ${{ steps.ecr.outputs.url }}:${{ github.sha }}
+          DIGEST=$(aws ecr describe-images \
+            --repository-name ${{ env.APP_NAME }} \
+            --image-ids imageTag=${{ github.sha }} \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Update Lambda
         run: |
           aws lambda update-function-code \
             --function-name ${{ env.APP_NAME }} \
-            --image-uri ${{ steps.ecr.outputs.url }}:latest
+            --image-uri ${{ steps.ecr.outputs.url }}@${{ steps.build.outputs.digest }}
 
       - name: Wait for Lambda Update
         run: |
