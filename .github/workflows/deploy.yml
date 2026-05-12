@@ -86,6 +86,7 @@ jobs:
           if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
             terraform import aws_apigatewayv2_api.api "$API_ID" || echo "API Gateway already in state"
             terraform import aws_apigatewayv2_stage.default "${API_ID}/\$default" || echo "Stage already in state"
+
             INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
               --api-id "$API_ID" \
               --query 'Items[0].IntegrationId' \
@@ -95,6 +96,21 @@ jobs:
             else
               echo "No integration found, skipping"
             fi
+
+            ROUTE_ID=$(aws apigatewayv2 get-routes \
+              --api-id "$API_ID" \
+              --query "Items[?RouteKey=='\$default'].RouteId | [0]" \
+              --output text)
+            if [ -n "$ROUTE_ID" ] && [ "$ROUTE_ID" != "None" ]; then
+              terraform import aws_apigatewayv2_route.default "${API_ID}/${ROUTE_ID}" || echo "Route already in state"
+            else
+              echo "No default route found, skipping"
+            fi
+
+            aws lambda get-policy --function-name ${{ env.APP_NAME }} 2>/dev/null | \
+              grep -q "AllowAPIGatewayInvoke" && \
+              terraform import aws_lambda_permission.apigw "${{ env.APP_NAME }}/AllowAPIGatewayInvoke" || \
+              echo "Lambda permission does not exist yet, skipping"
           else
             echo "API Gateway does not exist yet, skipping"
           fi
