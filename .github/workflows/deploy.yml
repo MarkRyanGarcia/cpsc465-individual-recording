@@ -49,11 +49,23 @@ jobs:
       - name: Terraform Apply (ECR only)
         run: terraform apply -auto-approve -target=aws_ecr_repository.api -target=aws_ecr_lifecycle_policy.api
 
-      - name: Import existing IAM role if it exists
+      - name: Import existing resources if they exist
         run: |
           aws iam get-role --role-name ${{ env.APP_NAME }}-lambda-role > /dev/null 2>&1 && \
             terraform import aws_iam_role.lambda ${{ env.APP_NAME }}-lambda-role || \
-            echo "Role does not exist yet, skipping import"
+            echo "IAM role does not exist yet, skipping"
+
+          aws lambda get-function --function-name ${{ env.APP_NAME }} > /dev/null 2>&1 && \
+            terraform import aws_lambda_function.api ${{ env.APP_NAME }} || \
+            echo "Lambda function does not exist yet, skipping"
+
+          aws lambda get-function-url-config --function-name ${{ env.APP_NAME }} > /dev/null 2>&1 && \
+            terraform import aws_lambda_function_url.api ${{ env.APP_NAME }} || \
+            echo "Lambda function URL does not exist yet, skipping"
+
+          aws lambda get-policy --function-name ${{ env.APP_NAME }} 2>/dev/null | grep -q FunctionURLAllowPublicAccess && \
+            terraform import aws_lambda_permission.public_url ${{ env.APP_NAME }}/FunctionURLAllowPublicAccess || \
+            echo "Lambda permission does not exist yet, skipping"
 
       - name: Push placeholder image to ECR
         run: |
