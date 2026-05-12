@@ -10,7 +10,6 @@ env:
   APP_NAME: individual-recording
 
 jobs:
-  # ── 1. Apply infrastructure ───────────────────────────────────────────────
   terraform:
     name: Terraform Apply
     runs-on: ubuntu-latest
@@ -41,10 +40,26 @@ jobs:
           key: tfstate-${{ github.ref_name }}
           restore-keys: tfstate-
 
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Apply
+      - name: Terraform Apply (ECR only)
+        run: terraform apply -auto-approve -target=aws_ecr_repository.api -target=aws_ecr_lifecycle_policy.api
+
+      - name: Push placeholder image to ECR
+        run: |
+          ECR_URL=$(aws ecr describe-repositories \
+            --repository-names ${{ env.APP_NAME }} \
+            --query 'repositories[0].repositoryUri' \
+            --output text)
+          docker pull alpine:latest
+          docker tag alpine:latest ${ECR_URL}:latest
+          docker push ${ECR_URL}:latest
+
+      - name: Terraform Apply (remaining resources)
         run: terraform apply -auto-approve
 
       - name: Save Terraform state
@@ -54,7 +69,6 @@ jobs:
           path: terraform/terraform.tfstate
           key: tfstate-${{ github.ref_name }}-${{ github.run_id }}
 
-  # ── 2. Build and deploy the API ───────────────────────────────────────────
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
