@@ -80,12 +80,21 @@ jobs:
             terraform import aws_lambda_function.api ${{ env.APP_NAME }} || \
             echo "Lambda function does not exist yet, skipping"
 
-          API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='${{ env.APP_NAME }}'].ApiId" --output text)
-          if [ -n "$API_ID" ]; then
-            terraform import aws_apigatewayv2_api.api $API_ID || echo "API Gateway already in state"
-            terraform import aws_apigatewayv2_stage.default "$API_ID/\$default" || echo "Stage already in state"
-            INTEGRATION_ID=$(aws apigatewayv2 get-integrations --api-id $API_ID --query 'Items[0].IntegrationId' --output text)
-            [ -n "$INTEGRATION_ID" ] && terraform import aws_apigatewayv2_integration.lambda "$API_ID/$INTEGRATION_ID" || echo "Integration already in state"
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${{ env.APP_NAME }}'].ApiId | [0]" \
+            --output text)
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            terraform import aws_apigatewayv2_api.api "$API_ID" || echo "API Gateway already in state"
+            terraform import aws_apigatewayv2_stage.default "${API_ID}/\$default" || echo "Stage already in state"
+            INTEGRATION_ID=$(aws apigatewayv2 get-integrations \
+              --api-id "$API_ID" \
+              --query 'Items[0].IntegrationId' \
+              --output text)
+            if [ -n "$INTEGRATION_ID" ] && [ "$INTEGRATION_ID" != "None" ]; then
+              terraform import aws_apigatewayv2_integration.lambda "${API_ID}/${INTEGRATION_ID}" || echo "Integration already in state"
+            else
+              echo "No integration found, skipping"
+            fi
           else
             echo "API Gateway does not exist yet, skipping"
           fi
