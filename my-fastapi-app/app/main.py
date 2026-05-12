@@ -10,4 +10,10 @@ async def root():
 
 
 
+@app.get("/endpoint2")
+async def endpoint2():
+    return {"message": "Hello from endpoint 2!"}
+
+
+
 handler = Mangum(app, lifespan="off")
