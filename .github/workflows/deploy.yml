@@ -4,15 +4,36 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_terraform:
+        description: 'Run Terraform Apply'
+        type: boolean
+        default: false
 
 env:
   AWS_REGION: us-east-1
   APP_NAME: individual-recording
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            terraform:
+              - 'terraform/**'
+              - '.github/workflows/terraform.yml'
+
   terraform:
     name: Terraform Apply
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true' || github.event.inputs.run_terraform == 'true'
     defaults:
       run:
         working-directory: terraform
@@ -92,7 +113,8 @@ jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
-    needs: terraform
+    needs: [changes, terraform]
+    if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped')
 
     steps:
       - uses: actions/checkout@v4
