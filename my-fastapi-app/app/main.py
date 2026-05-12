@@ -8,5 +8,9 @@ app = FastAPI(title="my-fastapi-app")
 async def root():
     return {"message": "Hello World!"}
 
+@app.get("/endpoint2")
+async def endpoint2():
+    return {"message": "Hello from endpoint 2!"}
+
 
 handler = Mangum(app, lifespan="off")
